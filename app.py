@@ -3,111 +3,135 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# CONFIGURACIÓN VISUAL CORPORATIVA
-st.set_page_config(page_title="Sistema de Gestión Empresarial", layout="wide", page_icon="🏢")
+# 1. CONFIGURACIÓN DE PÁGINA Y ESTILO
+st.set_page_config(page_title="Gestión Empresarial Pro", layout="wide", page_icon="🏢")
 
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
+    .main { background-color: #f4f7f6; }
     .stButton>button {
         width: 100%;
-        border-radius: 10px;
-        background-color: #002e5d;
+        border-radius: 8px;
+        background-color: #1E3A8A;
         color: white;
-        height: 3em;
         font-weight: bold;
+        height: 3em;
     }
+    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
     .stTabs [data-baseweb="tab"] {
-        padding: 10px 20px;
-        font-size: 14px;
+        background-color: #dee2e6;
+        border-radius: 5px;
+        padding: 8px 16px;
     }
+    .stTabs [aria-selected="true"] { background-color: #1E3A8A !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# CONEXIÓN A BASE DE DATOS
+# 2. CONEXIÓN A GOOGLE SHEETS
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-def registrar_en_excel(tabla, dataframe_nuevo):
+def registrar_dato(tabla, nuevo_df):
     try:
-        df_actual = conn.read(worksheet=tabla, ttl=0)
-        df_final = pd.concat([df_actual, dataframe_nuevo], ignore_index=True)
+        df_existente = conn.read(worksheet=tabla, ttl=0)
+        df_final = pd.concat([df_existente, nuevo_df], ignore_index=True)
         conn.update(worksheet=tabla, data=df_final)
         return True
-    except:
+    except Exception as e:
+        st.error(f"Error al guardar: {e}")
         return False
 
-# CONTROL DE SESIÓN
-if 'usuario' not in st.session_state:
-    st.session_state.usuario = None
+# 3. MANEJO DE SESIÓN
+if 'autenticado' not in st.session_state:
+    st.session_state.autenticado = False
+    st.session_state.usuario_datos = None
 
-# PANTALLA DE ACCESO
-if st.session_state.usuario is None:
-    st.title("🏢 Bienvenido al Sistema de Gestión")
+# --- PANTALLA DE ACCESO ---
+if not st.session_state.autenticado:
+    st.title("🏢 Sistema Integral de Gestión")
+    
     col1, col2 = st.columns(2)
-
+    
     with col1:
-        st.subheader("🔑 Inicio de Sesión")
-        u_id = st.text_input("Cédula")
-        u_pw = st.text_input("Contraseña", type="password")
-        if st.button("Entrar"):
-            db_users = conn.read(worksheet="Usuarios", ttl=0)
-            user = db_users[(db_users['Cédula'].astype(str) == u_id) & (db_users['Password'].astype(str) == u_pw)]
-            if not user.empty:
-                st.session_state.usuario = user.iloc[0].to_dict()
+        st.subheader("🔑 Acceso al Personal")
+        cedula_login = st.text_input("Cédula de Identidad")
+        pass_login = st.text_input("Contraseña", type="password")
+        
+        if st.button("ENTRAR AL SISTEMA"):
+            db_usuarios = conn.read(worksheet="Usuarios", ttl=0)
+            # Validar credenciales
+            usuario_match = db_usuarios[
+                (db_usuarios['Cédula'].astype(str) == cedula_login) & 
+                (db_usuarios['Password'].astype(str) == pass_login)
+            ]
+            
+            if not usuario_match.empty:
+                st.session_state.autenticado = True
+                st.session_state.usuario_datos = usuario_match.iloc[0].to_dict()
+                st.success("Acceso concedido. Cargando módulos...")
                 st.rerun()
             else:
-                st.error("Datos incorrectos")
+                st.error("Cédula o contraseña incorrecta.")
 
     with col2:
-        st.subheader("📝 Registro de Trabajador")
-        with st.form("reg_form"):
-            new_nom = st.text_input("Nombre y Apellidos")
-            new_ced = st.text_input("Cédula")
-            new_pas = st.text_input("Crear Contraseña", type="password")
-            new_cel = st.text_input("Celular")
-            new_dir = st.text_input("Dirección")
-            new_car = st.text_input("Cargo")
-            new_fam = st.number_input("Carga Familiar", min_value=0)
-            if st.form_submit_button("Registrarme"):
-                nuevo_u = pd.DataFrame([[new_ced, new_pas, new_nom, new_cel, new_dir, new_car, new_fam]], 
-                                      columns=["Cédula", "Password", "Nombre", "Celular", "Dirección", "Cargo", "Carga Familiar"])
-                registrar_en_excel("Usuarios", nuevo_u)
-                st.success("¡Registro guardado! Ya puedes entrar.")
+        st.subheader("📝 Registro de Nuevo Ingreso")
+        with st.form("registro_trabajador"):
+            r_ced = st.text_input("Cédula")
+            r_nom = st.text_input("Nombre Completo")
+            r_pas = st.text_input("Contraseña Nueva", type="password")
+            r_car = st.text_input("Cargo")
+            r_cel = st.text_input("Celular")
+            
+            if st.form_submit_button("REGISTRARME"):
+                nuevo_user = pd.DataFrame([[r_ced, r_pas, r_nom, r_car, r_cel]], 
+                    columns=["Cédula", "Password", "Nombre", "Cargo", "Celular"])
+                if registrar_dato("Usuarios", nuevo_user):
+                    st.success("Registro exitoso. Ya puedes iniciar sesión.")
 
-# PANEL PRIVADO
+# --- PANEL PRINCIPAL (MÓDULOS) ---
 else:
-    u = st.session_state.usuario
-    st.sidebar.title(f"Hola, {u['Nombre']}")
-    st.sidebar.write(f"**Cargo:** {u['Cargo']}")
+    u = st.session_state.usuario_datos
+    st.sidebar.title(f"👤 {u['Nombre']}")
+    st.sidebar.info(f"Cargo: {u['Cargo']}")
+    
     if st.sidebar.button("Cerrar Sesión"):
-        st.session_state.usuario = None
+        st.session_state.autenticado = False
         st.rerun()
 
-    st.title("🚀 Panel de Control")
+    st.title("🚀 Panel de Control Operativo")
     
-    # LOS 11 MÓDULOS
-    modulos = [
-        "Tareas pendientes", "Formación", "RRHH", "Organización", 
-        "Documentación", "Equipamiento", "Incidencias", 
-        "Evaluación Ambiental", "Proveedores", "Revisión Coordinación", "Evaluaciones"
+    # Lista de los 11 módulos
+    titulos_modulos = [
+        "📋 Tareas", "🎓 Formación", "👥 RRHH", "🏢 Organización", 
+        "📂 Documentos", "🔧 Equipamiento", "⚠️ Incidencias", 
+        "🌿 Ambiental", "🤝 Proveedores", "🔎 Coordinación", "📊 Evaluación"
     ]
     
-    tabs = st.tabs(modulos)
+    pestanas = st.tabs(titulos_modulos)
 
-    for i, m_nombre in enumerate(modulos):
-        with tabs[i]:
-            st.header(m_nombre)
-            with st.form(f"form_{i}"):
-                detalle = st.text_area("Ingresar información nueva:")
-                if st.form_submit_button("Guardar en Base de Datos"):
-                    nuevo_reg = pd.DataFrame([[datetime.now().strftime("%Y-%m-%d"), u['Nombre'], m_nombre, detalle]], 
-                                             columns=["Fecha", "Usuario", "Modulo", "Detalle"])
-                    registrar_en_excel("Registros_Globales", nuevo_reg)
-                    st.success("Información enviada correctamente.")
+    for i, titulo in enumerate(titulos_modulos):
+        with pestanas[i]:
+            st.header(titulo)
             
-            # Ver historial del módulo
+            # Subir información
+            with st.expander("➕ Reportar nueva actividad"):
+                with st.form(f"form_{i}"):
+                    descripcion = st.text_area("Detalles del reporte:")
+                    if st.form_submit_button("Enviar a Base de Datos"):
+                        nuevo_registro = pd.DataFrame([[
+                            datetime.now().strftime("%d/%m/%Y %H:%M"),
+                            u['Nombre'],
+                            titulo,
+                            descripcion
+                        ]], columns=["Fecha", "Usuario", "Modulo", "Detalle"])
+                        
+                        if registrar_dato("Registros_Globales", nuevo_registro):
+                            st.success("Información guardada en Excel.")
+            
+            # Visualizar historial específico de este módulo
             st.write("---")
-            st.subheader("Historial del módulo")
-            historial = conn.read(worksheet="Registros_Globales", ttl=0)
-            if not historial.empty:
-                st.dataframe(historial[historial['Modulo'] == m_nombre], use_container_width=True)
+            st.subheader("Historial Reciente")
+            df_historial = conn.read(worksheet="Registros_Globales", ttl=0)
+            if not df_historial.empty:
+                # Filtrar solo los datos de este módulo
+                filtro = df_historial[df_historial['Modulo'] == titulo]
+                st.dataframe(filtro, use_container_width=True)
