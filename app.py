@@ -115,15 +115,16 @@ else:
                 res = {c: st.text_input(c) for c in campos}
                 if st.form_submit_button(f"Guardar {nombre}"):
                     if any(res.values()):
-                        detalle = " | ".join([f"{k}: {v}" for k, v in res.items()])
-                        # Lógica de guardado corregida (Mismo nivel de espacios)
-                        nuevo_reg = pd.DataFrame([{
+                        detalle_texto = " | ".join([f"{k}: {v}" for k, v in res.items()])
+                        # Creamos la fila de datos con cuidado extremo en la sangría
+                        dict_registro = {
                             "Fecha": datetime.now().strftime("%d/%m/%Y %H:%M"),
                             "Usuario": st.session_state.nombre_usuario,
                             "Modulo": nombre,
-                            "Detalle": detalle
-                        }])
-                        if guardar_en_excel("Registros_Globales", nuevo_reg):
+                            "Detalle": detalle_texto
+                        }
+                        df_para_guardar = pd.DataFrame([dict_registro])
+                        if guardar_en_excel("Registros_Globales", df_para_guardar):
                             st.success("Guardado.")
                     else:
                         st.warning("Escriba algo.")
@@ -133,39 +134,4 @@ else:
             st.header("Auditoría")
             if st.button("Actualizar"):
                 st.dataframe(obtener_datos("Registros_Globales"))
- "Usuario": st.session_state.nombre_usuario,
-                            "Modulo": nombre,
-                            "Detalle": detalle
-                        }])
-                        if guardar_en_excel("Registros_Globales", nuevo_reg):
-                            st.success("Información guardada.")
-                    else:
-                        st.warning("Escriba algo antes de guardar.")
-
-    # Módulo exclusivo para Gerencia
-    if st.session_state.cargo_usuario == "Gerencia":
-        with tabs[-1]:
-            st.header("Auditoría General")
-            if st.button("🔄 Actualizar Datos"):
-                st.dataframe(obtener_datos("Registros_Globales"), use_container_width=True)
-e.nombre_usuario,
-                            "Modulo": nombre,
-                            "Detalle": detalle_unido
-                        }])
-                        if guardar_en_excel("Registros_Globales", datos):
-                            st.success(f"Información de {nombre} enviada con éxito.")
-                    else:
-                        st.warning("Por favor, rellene al menos un campo.")
-
-    # Módulo exclusivo para GERENCIA (última pestaña si existe)
-    if es_gerente:
-        with tabs[-1]:
-            st.header("📈 Auditoría y Reportes Globales")
-            st.info("Solo el personal de Gerencia tiene acceso a esta visualización.")
-            if st.button("🔄 Cargar Datos Actualizados"):
-                df_global = obtener_datos("Registros_Globales")
-                st.dataframe(df_global, use_container_width=True)
-                
-                # Botón de descarga
-                csv = df_global.to_csv(index=False).encode('utf-8')
-                st.download_button("📥 Descargar Reporte en CSV", csv, "reporte_integral.csv", "text/csv")
+    
