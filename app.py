@@ -3,31 +3,23 @@ from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime
 
-# 1. CONFIGURACIÓN DE PÁGINA Y ESTILO
-st.set_page_config(page_title="Gestión Empresarial Pro", layout="wide", page_icon="🏢")
+# 1. CONFIGURACIÓN DE PÁGINA
+st.set_page_config(page_title="Sistema de Gestión Pro", layout="wide", page_icon="🏢")
 
+# Estilos visuales
 st.markdown("""
     <style>
-    .main { background-color: #f4f7f6; }
-    .stButton>button {
-        width: 100%;
-        border-radius: 8px;
-        background-color: #1E3A8A;
+    .main { background-color: #f8f9fa; }
+    div.stButton > button:first-child {
+        background-color: #0066cc;
         color: white;
-        font-weight: bold;
         height: 3em;
+        font-weight: bold;
     }
-    .stTabs [data-baseweb="tab-list"] { gap: 10px; }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #dee2e6;
-        border-radius: 5px;
-        padding: 8px 16px;
-    }
-    .stTabs [aria-selected="true"] { background-color: #1E3A8A !important; color: white !important; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. CONEXIÓN A GOOGLE SHEETS
+# 2. CONEXIÓN
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def registrar_dato(tabla, nuevo_df):
@@ -37,101 +29,99 @@ def registrar_dato(tabla, nuevo_df):
         conn.update(worksheet=tabla, data=df_final)
         return True
     except Exception as e:
-        st.error(f"Error al guardar: {e}")
+        st.error(f"Error de conexión: {e}")
         return False
 
-# 3. MANEJO DE SESIÓN
+# 3. LÓGICA DE NAVEGACIÓN
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
-    st.session_state.usuario_datos = None
 
-# --- PANTALLA DE ACCESO ---
+# --- PANTALLA DE ACCESO (LOGIN / REGISTRO) ---
 if not st.session_state.autenticado:
-    st.title("🏢 Sistema Integral de Gestión")
+    st.title("🏢 Acceso al Sistema")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        st.subheader("🔑 Acceso al Personal")
-        cedula_login = st.text_input("Cédula de Identidad")
-        pass_login = st.text_input("Contraseña", type="password")
-        
-        if st.button("ENTRAR AL SISTEMA"):
-            db_usuarios = conn.read(worksheet="Usuarios", ttl=0)
-            # Validar credenciales
-            usuario_match = db_usuarios[
-                (db_usuarios['Cédula'].astype(str) == cedula_login) & 
-                (db_usuarios['Password'].astype(str) == pass_login)
-            ]
-            
-            if not usuario_match.empty:
-                st.session_state.autenticado = True
-                st.session_state.usuario_datos = usuario_match.iloc[0].to_dict()
-                st.success("Acceso concedido. Cargando módulos...")
-                st.rerun()
-            else:
-                st.error("Cédula o contraseña incorrecta.")
+    tab_login, tab_reg = st.tabs(["🔐 Iniciar Sesión", "📝 Registrar Nuevo Usuario"])
 
-    with col2:
-        st.subheader("📝 Registro de Nuevo Ingreso")
-        with st.form("registro_trabajador"):
+    with tab_login:
+        with st.container():
+            cedula = st.text_input("Cédula de Identidad", key="l_cedula")
+            clave = st.text_input("Contraseña", type="password", key="l_clave")
+            
+            if st.button("ENTRAR AL SISTEMA"):
+                df_users = conn.read(worksheet="Usuarios", ttl=0)
+                # Validar si existe el usuario
+                user_match = df_users[(df_users['Cédula'].astype(str) == cedula) & 
+                                     (df_users['Password'].astype(str) == clave)]
+                
+                if not user_match.empty:
+                    st.session_state.autenticado = True
+                    st.session_state.nombre_usuario = user_match.iloc[0]['Nombre']
+                    st.session_state.cargo_usuario = user_match.iloc[0]['Cargo']
+                    st.success(f"Bienvenido, {st.session_state.nombre_usuario}")
+                    st.rerun() # Salta de inmediato a los módulos
+                else:
+                    st.error("Datos incorrectos. Intente de nuevo.")
+
+    with tab_reg:
+        with st.form("registro"):
+            st.subheader("Datos del Trabajador")
             r_ced = st.text_input("Cédula")
             r_nom = st.text_input("Nombre Completo")
-            r_pas = st.text_input("Contraseña Nueva", type="password")
-            r_car = st.text_input("Cargo")
-            r_cel = st.text_input("Celular")
+            r_car = st.selectbox("Cargo", ["Operario", "Supervisor", "Gerente", "Administrativo"])
+            r_pas = st.text_input("Cree una Contraseña", type="password")
             
-            if st.form_submit_button("REGISTRARME"):
-                nuevo_user = pd.DataFrame([[r_ced, r_pas, r_nom, r_car, r_cel]], 
-                    columns=["Cédula", "Password", "Nombre", "Cargo", "Celular"])
-                if registrar_dato("Usuarios", nuevo_user):
-                    st.success("Registro exitoso. Ya puedes iniciar sesión.")
+            if st.form_submit_button("REGISTRAR Y ENTRAR"):
+                if r_ced and r_nom and r_pas:
+                    nuevo_u = pd.DataFrame([[r_ced, r_pas, r_nom, r_car]], 
+                                         columns=["Cédula", "Password", "Nombre", "Cargo"])
+                    
+                    if registrar_dato("Usuarios", nuevo_u):
+                        # Login automático tras registro
+                        st.session_state.autenticado = True
+                        st.session_state.nombre_usuario = r_nom
+                        st.session_state.cargo_usuario = r_car
+                        st.success("¡Registro exitoso!")
+                        st.rerun()
+                else:
+                    st.warning("Por favor rellene todos los campos.")
 
-# --- PANEL PRINCIPAL (MÓDULOS) ---
+# --- PANEL DE MÓDULOS (ESTO APARECE DESPUÉS DE ENTRAR) ---
 else:
-    u = st.session_state.usuario_datos
-    st.sidebar.title(f"👤 {u['Nombre']}")
-    st.sidebar.info(f"Cargo: {u['Cargo']}")
+    # Barra lateral
+    st.sidebar.title("Menú Principal")
+    st.sidebar.write(f"👤 **Usuario:** {st.session_state.nombre_usuario}")
+    st.sidebar.write(f"💼 **Cargo:** {st.session_state.cargo_usuario}")
     
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state.autenticado = False
         st.rerun()
 
-    st.title("🚀 Panel de Control Operativo")
+    st.title("🚀 Gestión de Módulos Operativos")
     
-    # Lista de los 11 módulos
-    titulos_modulos = [
+    modulos = [
         "📋 Tareas", "🎓 Formación", "👥 RRHH", "🏢 Organización", 
         "📂 Documentos", "🔧 Equipamiento", "⚠️ Incidencias", 
         "🌿 Ambiental", "🤝 Proveedores", "🔎 Coordinación", "📊 Evaluación"
     ]
     
-    pestanas = st.tabs(titulos_modulos)
+    tabs = st.tabs(modulos)
 
-    for i, titulo in enumerate(titulos_modulos):
-        with pestanas[i]:
-            st.header(titulo)
-            
-            # Subir información
-            with st.expander("➕ Reportar nueva actividad"):
-                with st.form(f"form_{i}"):
-                    descripcion = st.text_area("Detalles del reporte:")
-                    if st.form_submit_button("Enviar a Base de Datos"):
-                        nuevo_registro = pd.DataFrame([[
-                            datetime.now().strftime("%d/%m/%Y %H:%M"),
-                            u['Nombre'],
-                            titulo,
-                            descripcion
-                        ]], columns=["Fecha", "Usuario", "Modulo", "Detalle"])
-                        
-                        if registrar_dato("Registros_Globales", nuevo_registro):
-                            st.success("Información guardada en Excel.")
-            
-            # Visualizar historial específico de este módulo
-            st.write("---")
-            st.subheader("Historial Reciente")
-            df_historial = conn.read(worksheet="Registros_Globales", ttl=0)
-            if not df_historial.empty:
+    for i, nombre_mod in enumerate(modulos):
+        with tabs[i]:
+            st.header(nombre_mod)
+            with st.form(f"f_{nombre_mod}"):
+                detalles = st.text_area("Descripción de la actividad o reporte:")
+                if st.form_submit_button(f"Guardar en {nombre_mod}"):
+                    nuevo_reg = pd.DataFrame([[
+                        datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        st.session_state.nombre_usuario,
+                        nombre_mod,
+                        detalles
+                    ]], columns=["Fecha", "Usuario", "Modulo", "Detalle"])
+                    
+                    if registrar_dato("Registros_Globales", nuevo_reg):
+                        st.success("Reporte guardado con éxito.")
+         if not df_historial.empty:
                 # Filtrar solo los datos de este módulo
                 filtro = df_historial[df_historial['Modulo'] == titulo]
                 st.dataframe(filtro, use_container_width=True)
