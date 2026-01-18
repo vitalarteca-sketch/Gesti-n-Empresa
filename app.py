@@ -152,4 +152,3 @@ else:
                 # Botón de descarga
                 csv = df_global.to_csv(index=False).encode('utf-8')
                 st.download_button("📥 Descargar Reporte en CSV", csv, "reporte_integral.csv", "text/csv")
-    
