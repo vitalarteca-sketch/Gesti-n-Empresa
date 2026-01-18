@@ -6,30 +6,24 @@ from datetime import datetime
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Gestión Empresarial Integral", layout="wide", page_icon="🏢")
 
-# --- URL DE TU EXCEL CONFIGURADA ---
+# URL DE TU EXCEL
 URL_EXCEL = "https://docs.google.com/spreadsheets/d/1btqRzww3PoTd8J6OdmXqR27ZI4Q5lalE/edit"
 
-# Estilo visual profesional
+# Estilo visual
 st.markdown("""
     <style>
     .main { background-color: #f0f2f6; }
     .stButton>button { width: 100%; border-radius: 10px; height: 3em; background-color: #004b95; color: white; font-weight: bold; }
-    .stTabs [data-baseweb="tab-list"] { gap: 5px; }
-    .stTabs [data-baseweb="tab"] { background-color: #e1e4e8; border-radius: 5px; padding: 10px; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. CONEXIÓN Y FUNCIONES TÉCNICAS
+# 2. CONEXIÓN Y FUNCIONES
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def registrar_dato(tabla, nuevo_df):
-    """Inserta datos en el Excel usando la URL directa para evitar errores de 'Spreadsheet not specified'"""
     try:
-        # Leemos los datos existentes
         df_existente = conn.read(spreadsheet=URL_EXCEL, worksheet=tabla, ttl=0)
-        # Concatenamos el nuevo registro
         df_final = pd.concat([df_existente, nuevo_df], ignore_index=True)
-        # Actualizamos el Excel
         conn.update(spreadsheet=URL_EXCEL, worksheet=tabla, data=df_final)
         return True
     except Exception as e:
@@ -37,65 +31,77 @@ def registrar_dato(tabla, nuevo_df):
         return False
 
 def guardar_registro_modulo(nombre_modulo, datos_dict):
-    """Prepara los datos de los 11 módulos para ser guardados"""
     datos_dict['Fecha'] = datetime.now().strftime("%d/%m/%Y %H:%M")
     datos_dict['Usuario'] = st.session_state.nombre_usuario
     datos_dict['Modulo'] = nombre_modulo
-    
     nuevo_df = pd.DataFrame([datos_dict])
     return registrar_dato("Registros_Globales", nuevo_df)
 
-# 3. LÓGICA DE NAVEGACIÓN Y SESIÓN
+# 3. MANEJO DE SESIÓN
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-# --- PANTALLA DE ACCESO (LOGIN Y REGISTRO) ---
+# --- PANTALLA DE ACCESO ---
 if not st.session_state.autenticado:
-    st.title("🏢 Sistema de Gestión Operativa")
-    tab_login, tab_reg = st.tabs(["🔐 Iniciar Sesión", "📝 Registro de Personal"])
+    st.title("🏢 Acceso al Sistema")
+    t_login, t_reg = st.tabs(["🔐 Iniciar Sesión", "📝 Registro"])
 
-    with tab_login:
-        c_login = st.text_input("Cédula de Identidad", key="login_cedula").strip()
-        p_login = st.text_input("Contraseña", type="password", key="login_pass").strip()
-        
+    with t_login:
+        c_login = st.text_input("Cédula", key="l_c").strip()
+        p_login = st.text_input("Contraseña", type="password", key="l_p").strip()
         if st.button("ENTRAR AL SISTEMA"):
-            if c_login and p_login:
-                df_u = conn.read(spreadsheet=URL_EXCEL, worksheet="Usuarios", ttl=0)
-                # Normalizamos datos para la comparación
-                df_u['Cédula'] = df_u['Cédula'].astype(str).str.strip()
-                df_u['Password'] = df_u['Password'].astype(str).str.strip()
-                
-                match = df_u[(df_u['Cédula'] == c_login) & (df_u['Password'] == p_login)]
-                
-                if not match.empty:
-                    st.session_state.autenticado = True
-                    st.session_state.nombre_usuario = match.iloc[0]['Nombre']
-                    st.session_state.cargo_usuario = match.iloc[0]['Cargo']
-                    st.success("Acceso concedido...")
-                    st.rerun()
-                else:
-                    st.error("Usuario o contraseña no encontrados.")
+            df_u = conn.read(spreadsheet=URL_EXCEL, worksheet="Usuarios", ttl=0)
+            df_u['Cédula'] = df_u['Cédula'].astype(str).str.strip()
+            df_u['Password'] = df_u['Password'].astype(str).str.strip()
+            match = df_u[(df_u['Cédula'] == c_login) & (df_u['Password'] == p_login)]
+            if not match.empty:
+                st.session_state.autenticado = True
+                st.session_state.nombre_usuario = match.iloc[0]['Nombre']
+                st.session_state.cargo_usuario = match.iloc[0]['Cargo']
+                st.rerun()
             else:
-                st.warning("Por favor rellene ambos campos.")
+                st.error("Datos incorrectos")
 
-    with tab_reg:
-        with st.form("registro_nuevo"):
-            st.subheader("Crear Cuenta de Trabajador")
-            r_ced = st.text_input("Número de Cédula")
-            r_nom = st.text_input("Nombre y Apellido")
-            r_car = st.selectbox("Cargo / Área", ["Operativo", "Administrativo", "Supervisor", "Gerente"])
-            r_pas = st.text_input("Asigne una Contraseña", type="password")
-            
-            if st.form_submit_button("REGISTRARSE E INGRESAR"):
+    with t_reg:
+        with st.form("form_reg"):
+            r_ced = st.text_input("Cédula")
+            r_nom = st.text_input("Nombre")
+            r_car = st.selectbox("Cargo", ["Operativo", "Administrativo", "Supervisor", "Gerencia"])
+            r_pas = st.text_input("Contraseña", type="password")
+            if st.form_submit_button("REGISTRAR Y ENTRAR"):
                 if r_ced and r_nom and r_pas:
-                    # Crear fila para la pestaña Usuarios
-                    nuevo_user = pd.DataFrame([[r_ced.strip(), r_pas.strip(), r_nom.strip(), r_car]], 
-                                            columns=["Cédula", "Password", "Nombre", "Cargo"])
-                    
-                    if registrar_dato("Usuarios", nuevo_user):
-                        # Login automático
+                    nuevo_u = pd.DataFrame([[r_ced.strip(), r_pas.strip(), r_nom.strip(), r_car]], 
+                                         columns=["Cédula", "Password", "Nombre", "Cargo"])
+                    if registrar_dato("Usuarios", nuevo_u):
                         st.session_state.autenticado = True
                         st.session_state.nombre_usuario = r_nom
+                        st.session_state.cargo_usuario = r_car
+                        st.rerun()
+                else:
+                    st.warning("Faltan datos")
+
+# --- PANEL DE MÓDULOS ---
+else:
+    st.sidebar.write(f"👤 **{st.session_state.nombre_usuario}**")
+    if st.sidebar.button("Salir"):
+        st.session_state.autenticado = False
+        st.rerun()
+
+    modulos = ["📋 Tareas", "🎓 Formación", "👥 RRHH", "🏢 Organización", "📂 Documentos", 
+               "🔧 Equipos", "⚠️ Incidencias", "🌿 Ambiental", "🤝 Proveedores", "🔎 Coordinación", "📊 Evaluación"]
+    
+    tabs = st.tabs(modulos)
+    for i, nombre in enumerate(modulos):
+        with tabs[i]:
+            st.header(nombre)
+            with st.form(key=f"f_{i}"):
+                det = st.text_area("Detalle de la actividad:")
+                if st.form_submit_button("Guardar reporte"):
+                    if det:
+                        if guardar_registro_modulo(nombre, {"Detalle": det}):
+                            st.success("Guardado correctamente")
+                    else:
+                        st.warning("Escriba un detalle")suario = r_nom
                         st.session_state.cargo_usuario = r_car
                         st.success("¡Registro exitoso!")
                         st.rerun()
