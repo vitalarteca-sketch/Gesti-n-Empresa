@@ -74,7 +74,7 @@ if not st.session_state.autenticado:
                                          columns=["Cédula", "Password", "Nombre", "Cargo"])
                     if registrar_dato("Usuarios", nuevo_u):
                         st.session_state.autenticado = True
-                        st.session_state.nombre_usuario = r_nom
+                        st.session_state.nombre_usuario = r_nom.strip()
                         st.session_state.cargo_usuario = r_car
                         st.rerun()
                 else:
@@ -95,14 +95,14 @@ else:
         with tabs[i]:
             st.header(nombre)
             with st.form(key=f"f_{i}"):
-                det = st.text_area("Detalle de la actividad:")
-                if st.form_submit_button("Guardar reporte"):
+                det = st.text_area("Detalle de la actividad:", key=f"area_{i}")
+                if st.form_submit_button(f"Guardar en {nombre}"):
                     if det:
                         if guardar_registro_modulo(nombre, {"Detalle": det}):
                             st.success("Guardado correctamente")
                     else:
-                        st.warning("Escriba un detalle")suario = r_nom
-                        st.session_state.cargo_usuario = r_car
+                        st.warning("Escriba un detalle antes de guardar.")
+_state.cargo_usuario = r_car
                         st.success("¡Registro exitoso!")
                         st.rerun()
                 else:
