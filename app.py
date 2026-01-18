@@ -76,6 +76,7 @@ if not st.session_state.autenticado:
                         st.session_state.autenticado = True
                         st.session_state.nombre_usuario = r_nom.strip()
                         st.session_state.cargo_usuario = r_car
+                        st.success("¡Registro exitoso!")
                         st.rerun()
                 else:
                     st.warning("Faltan datos")
@@ -102,76 +103,3 @@ else:
                             st.success("Guardado correctamente")
                     else:
                         st.warning("Escriba un detalle antes de guardar.")
-_state.cargo_usuario = r_car
-                        st.success("¡Registro exitoso!")
-                        st.rerun()
-                else:
-                    st.error("Todos los campos son obligatorios.")
-
-# --- PANEL DE CONTROL (11 MÓDULOS) ---
-else:
-    # Barra lateral de usuario
-    st.sidebar.title("Menú")
-    st.sidebar.write(f"👤 **Usuario:** {st.session_state.nombre_usuario}")
-    st.sidebar.write(f"💼 **Cargo:** {st.session_state.cargo_usuario}")
-    
-    if st.sidebar.button("Cerrar Sesión"):
-        st.session_state.autenticado = False
-        st.rerun()
-
-    st.title("🚀 Panel Operativo Integral")
-    
-    modulos = [
-        "📋 Tareas", "🎓 Formación", "👥 RRHH", "🏢 Organización", 
-        "📂 Documentos", "🔧 Equipamiento", "⚠️ Incidencias", 
-        "🌿 Ambiental", "🤝 Proveedores", "🔎 Coordinación", "📊 Evaluación"
-    ]
-    
-    tabs = st.tabs(modulos)
-
-    for i, nombre in enumerate(modulos):
-        with tabs[i]:
-            st.header(nombre)
-            with st.form(key=f"form_modulo_{i}"):
-                st.write(f"Registro de actividad para: {nombre}")
-                descripcion = st.text_area("Describa la actividad o novedad aquí:", key=f"text_{i}")
-                
-                # Ejemplo de campo dinámico para Incidencias
-                extra = ""
-                if nombre == "⚠️ Incidencias":
-                    extra = st.selectbox("Nivel de Gravedad", ["Bajo", "Medio", "Alto", "Crítico"])
-                
-                if st.form_submit_button(f"Enviar a {nombre}"):
-                    if descripcion:
-                        texto_final = f"{descripcion} | Ref: {extra}" if extra else descripcion
-                        if guardar_registro_modulo(nombre, {"Detalle": texto_final}):
-                            st.success("Información guardada correctamente en el Excel.")
-                    else:
-                        st.warning("Por favor escriba un detalle antes de guardar.")
-     cant = st.text_input("Cantidad/Peso")
-            if st.form_submit_button("Registrar Acción Ambiental"):
-                guardar_registro("Ambiental", {"Detalle": f"Residuo: {residuo} | Cant: {cant}"})
-
-    with tabs[8]: # PROVEEDORES
-        st.header("🤝 Gestión de Proveedores")
-        with st.form("f8"):
-            prov = st.text_input("Nombre del Proveedor")
-            serv = st.text_input("Servicio/Producto recibido")
-            if st.form_submit_button("Registrar Recepción"):
-                guardar_registro("Proveedores", {"Detalle": f"Proveedor: {prov} | Servicio: {serv}"})
-
-    with tabs[9]: # COORDINACIÓN
-        st.header("🔎 Coordinación y Enlace")
-        with st.form("f9"):
-            minuta = st.text_area("Puntos tratados en reunión/coordinación")
-            acuerdo = st.text_input("Acuerdo principal")
-            if st.form_submit_button("Guardar Minuta"):
-                guardar_registro("Coordinación", {"Detalle": f"Puntos: {minuta} | Acuerdo: {acuerdo}"})
-
-    with tabs[10]: # EVALUACIÓN
-        st.header("📊 Evaluación y Desempeño")
-        with st.form("f10"):
-            meta = st.text_input("Meta/KPI alcanzado")
-            porcentaje = st.slider("Porcentaje de cumplimiento", 0, 100, 50)
-            if st.form_submit_button("Enviar Evaluación"):
-                guardar_registro("Evaluación", {"Detalle": f"Meta: {meta} | Cumplimiento: {porcentaje}%"})
