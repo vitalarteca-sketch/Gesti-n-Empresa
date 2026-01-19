@@ -6,17 +6,18 @@ from datetime import datetime
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="Sistema de Gestión Integral", layout="wide", page_icon="🏢")
 
-# URL DE TU EXCEL NATIVO
-URL_EXCEL = "https://docs.google.com/spreadsheets/d/1K_iPI_cte1dv82rObC_IEfMIh75KViClc6eayZjiHAE/edit"
+# NUEVA URL ACTUALIZADA
+URL_EXCEL = "https://docs.google.com/spreadsheets/d/1g7W5lAB6DZXBW84eFHTUUzAEj9LytjLnjLP7Lrn1IhI/edit"
 
-# 2. CONEXIÓN
+# 2. CONEXIÓN Y MOTOR DE DATOS
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def obtener_datos(tabla):
     try:
+        # ttl=0 para lectura en tiempo real
         return conn.read(spreadsheet=URL_EXCEL, worksheet=tabla, ttl=0)
     except Exception:
-        # Si la pestaña no existe, devolvemos las columnas necesarias para que el código no rompa
+        # Estructura base si la pestaña no existe
         if tabla == "Usuarios":
             return pd.DataFrame(columns=["Cédula", "Password", "Nombre", "Dirección", "Cargo"])
         else:
@@ -24,25 +25,21 @@ def obtener_datos(tabla):
 
 def guardar_en_excel(tabla, nuevo_df):
     try:
-        # Intentamos obtener lo que ya existe
         df_existente = obtener_datos(tabla)
-        # Combinamos
+        nuevo_df.columns = nuevo_df.columns.str.strip()
         df_final = pd.concat([df_existente, nuevo_df], ignore_index=True)
-        # Limpieza de datos nulos para evitar errores de API
-        df_final = df_final.fillna("")
-        # ACTUALIZACIÓN FORZADA
         conn.update(spreadsheet=URL_EXCEL, worksheet=tabla, data=df_final)
         st.cache_data.clear()
         return True
     except Exception as e:
-        st.error(f"Error técnico al guardar: {e}")
+        st.error(f"Error al guardar: {e}")
         return False
 
 # 3. CONTROL DE SESIÓN
 if 'autenticado' not in st.session_state:
     st.session_state.autenticado = False
 
-# --- PANTALLA DE ACCESO ---
+# --- INTERFAZ DE ACCESO ---
 if not st.session_state.autenticado:
     st.title("🏢 Acceso Corporativo")
     t_login, t_reg = st.tabs(["🔐 Iniciar Sesión", "📝 Registrarse"])
@@ -52,50 +49,47 @@ if not st.session_state.autenticado:
         p_login = st.text_input("Contraseña", type="password", key="l_p").strip()
         if st.button("INGRESAR"):
             df_u = obtener_datos("Usuarios")
-            if not df_u.empty:
-                # Verificación flexible de columnas
-                df_u.columns = [c.strip() for c in df_u.columns]
-                match = df_u[(df_u['Cédula'].astype(str) == c_login) & (df_u['Password'].astype(str) == p_login)]
-                if not match.empty:
-                    st.session_state.autenticado = True
-                    st.session_state.nombre_usuario = match.iloc[0]['Nombre']
-                    st.session_state.cargo_usuario = match.iloc[0]['Cargo']
-                    st.rerun()
-                else:
-                    st.error("Cédula o contraseña incorrectas.")
+            df_u.columns = df_u.columns.str.strip()
+            # Validación de credenciales
+            match = df_u[(df_u['Cédula'].astype(str) == c_login) & (df_u['Password'].astype(str) == p_login)]
+            if not match.empty:
+                st.session_state.autenticado = True
+                st.session_state.nombre_usuario = match.iloc[0]['Nombre']
+                st.session_state.cargo_usuario = match.iloc[0]['Cargo']
+                st.rerun()
             else:
-                st.error("No hay usuarios registrados aún.")
+                st.error("Cédula o contraseña incorrectas.")
 
     with t_reg:
         with st.form("registro_form"):
-            r_ced = st.text_input("Cédula (con tilde)")
+            st.subheader("Formulario de Registro")
+            r_ced = st.text_input("Cédula")
             r_nom = st.text_input("Nombre Completo")
-            r_dir = st.text_input("Dirección (con tilde)")
+            r_dir = st.text_input("Dirección")
             r_car = st.selectbox("Cargo", ["Operativo", "Administrativo", "Supervisor", "Gerencia"])
             r_pas = st.text_input("Contraseña", type="password")
+            
             if st.form_submit_button("REGISTRARSE"):
                 if r_ced and r_nom and r_pas:
-                    # Validar si existe
                     df_u = obtener_datos("Usuarios")
-                    if not df_u.empty and r_ced.strip() in df_u['Cédula'].astype(str).values:
-                        st.warning("Esta cédula ya existe.")
+                    if r_ced.strip() in df_u['Cédula'].astype(str).values:
+                        st.warning("Esta cédula ya está registrada.")
                     else:
                         nuevo_u = pd.DataFrame([[r_ced.strip(), r_pas.strip(), r_nom.strip(), r_dir.strip(), r_car]], 
                                              columns=["Cédula", "Password", "Nombre", "Dirección", "Cargo"])
                         if guardar_en_excel("Usuarios", nuevo_u):
-                            st.success("¡Usuario guardado!")
+                            st.success("¡Registro exitoso!")
                             st.session_state.autenticado = True
                             st.session_state.nombre_usuario = r_nom
                             st.session_state.cargo_usuario = r_car
                             st.rerun()
                 else:
-                    st.error("Todos los campos son obligatorios.")
+                    st.error("Rellene todos los campos.")
 
 # --- PANEL DE MÓDULOS ---
 else:
     st.sidebar.title("Menú")
-    st.sidebar.write(f"👤 **{st.session_state.nombre_usuario}**")
-    st.sidebar.write(f"💼 *{st.session_state.cargo_usuario}*")
+    st.sidebar.success(f"👤 {st.session_state.nombre_usuario}\n💼 {st.session_state.cargo_usuario}")
     if st.sidebar.button("Cerrar Sesión"):
         st.session_state.autenticado = False
         st.rerun()
@@ -116,7 +110,7 @@ else:
 
     titulos = [m[0] for m in config_m]
     if st.session_state.cargo_usuario == "Gerencia":
-        titulos.append("📈 REPORTE")
+        titulos.append("📈 REPORTE MAESTRO")
 
     tabs = st.tabs(titulos)
 
@@ -124,20 +118,26 @@ else:
         with tabs[i]:
             st.header(nombre)
             with st.form(key=f"f_{i}"):
-                res = {c: st.text_input(c) for c in campos}
-                if st.form_submit_button("Guardar"):
-                    detalle = " | ".join([f"{k}: {v}" for k, v in res.items()])
-                    nuevo_reg = pd.DataFrame([{
-                        "Fecha": datetime.now().strftime("%d/%m/%Y %H:%M"),
-                        "Usuario": st.session_state.nombre_usuario,
-                        "Modulo": nombre,
-                        "Detalle": detalle
-                    }])
-                    if guardar_en_excel("Registros_Globales", nuevo_reg):
-                        st.success("Guardado en Excel.")
+                res = {}
+                for c in campos:
+                    res[c] = st.text_input(c)
+                
+                if st.form_submit_button(f"Guardar"):
+                    if any(res.values()):
+                        detalle_texto = " | ".join([f"{k}: {v}" for k, v in res.items()])
+                        dict_reg = {
+                            "Fecha": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                            "Usuario": st.session_state.nombre_usuario,
+                            "Modulo": nombre,
+                            "Detalle": detalle_texto
+                        }
+                        if guardar_en_excel("Registros_Globales", pd.DataFrame([dict_reg])):
+                            st.success("Guardado.")
+                    else:
+                        st.warning("Formulario vacío.")
 
     if st.session_state.cargo_usuario == "Gerencia":
         with tabs[-1]:
             st.header("Auditoría General")
-            st.dataframe(obtener_datos("Registros_Globales"), use_container_width=True)
-        
+            if st.button("Actualizar Tabla"):
+                st.dataframe(obtener_datos("Registros_Globales"), use_container_width=True)
